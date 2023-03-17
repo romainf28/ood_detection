@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 
 
-from utils import softmax, energy_score, mahalanobis_distance
+from utils import softmax, energy_score, mahalanobis_distance, IRW
 
 
 class OODDetector(ClassifierMixin):
@@ -42,3 +42,7 @@ class OODDetector(ClassifierMixin):
         elif self.similarity_measure == 'mahalanobis':
             self.similarity_score = lambda x: mahalanobis_distance(
                 x, self.base_distrib)
+
+        elif self.similarity_measure == 'IRW':
+            self.similarity_score = lambda x: IRW(
+                X_train=self.base_distrib, X_test=np.mean(x, axis=-1), n_proj=int(1e3))
