@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 
 
-from utils import softmax, logSumExp, mahalanobis_distance
+from utils import softmax, energy_score, mahalanobis_distance
 
 
 class OODDetector(ClassifierMixin):
@@ -36,7 +36,8 @@ class OODDetector(ClassifierMixin):
             self.similarity_score = lambda x: 1-np.max(softmax(x), axis=-1)
 
         elif self.similarity_measure == 'E':
-            self.similarity_score = lambda x: self.T * logSumExp(x/self.T)
+            self.similarity_score = lambda x: energy_score(
+                x, temperature=self.T)
 
         elif self.similarity_measure == 'mahalanobis':
             self.similarity_score = lambda x: mahalanobis_distance(
