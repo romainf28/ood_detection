@@ -1,0 +1,8 @@
+{
+  "imdb": ["imdb"],
+  "20ng": ["SetFit/20_newsgroups"],
+  "mnli": ["SetFit/mnli"],
+  "rte": ["SetFit/rte"],
+  "wmt16": ["wmt16", "de-en"],
+  "multi30k": ["bentrevett/multi30k"]
+}
