@@ -6,10 +6,10 @@ class CustomBert(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
-        self.n_layers = len(self.base_model.bert.encoder.layer)
+        self.n_layers = len(self.model.bert.encoder.layer)
 
     def to(self, device):
-        self.base_model.to(device)
+        self.model.to(device)
         return self
 
     def forward(self, x, aggregate=True):
