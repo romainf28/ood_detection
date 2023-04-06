@@ -33,6 +33,7 @@ def save_in_ds_embeddings(model, tokenizer, in_ds_name='imdb', ds_names={'imdb':
     data_loader = DataLoader(dataset=dataset['test'], batch_size=8, collate_fn=lambda x: [
         el['text'] for el in x])
     in_ds_embeddings = []
+    in_ds_logits = []
 
     custom_bert = CustomBert(model).to('cuda')
     for batch in tqdm(data_loader):
@@ -42,10 +43,16 @@ def save_in_ds_embeddings(model, tokenizer, in_ds_name='imdb', ds_names={'imdb':
         # forward pass of the custom bert model
         outputs = custom_bert.forward(batch_encoded_input, aggregate=aggregate)
         in_ds_embeddings.append(outputs['embeddings'].cpu().detach())
+        in_ds_logits.append(outputs['logits'].cpu().detach())
 
     # save embeddings
     with open('./pickle_files/embeddings_inds_test_{}.pkl'.format(in_ds_name), 'wb') as f:
         pickle.dump(in_ds_embeddings, f)
+        f.close()
+    # save logits
+    with open('./pickle_files/logits_inds_test_{}'.format(in_ds_name), 'wb') as f:
+        pickle.dump(in_ds_logits, f)
+        f.close()
 
 
 def save_ood_embeddings(model, tokenizer, in_ds_name='imdb', ds_names={'imdb': 'imdb'}, aggregate=True):
@@ -62,14 +69,21 @@ def save_ood_embeddings(model, tokenizer, in_ds_name='imdb', ds_names={'imdb': '
                                      collate_fn=collate_fns[ds_name],
                                      )
             ood_embeddings = []
+            ood_logits = []
             for batch in tqdm(data_loader):
                 tk_batch = tokenizer(batch, return_tensors="pt", truncation=True, padding=True)[
                     'input_ids'].to('cuda')
                 outputs = custom_bert.forward(tk_batch, aggregated=False)
                 ood_embeddings.append(outputs['embeddings'].cpu().detach())
+                ood_logits.append(outputs['logits'].cpu().detach())
 
     with open('.pickle_files/embeddings_ood_test_{}.pkl'.format(ds_name), 'wb') as f:
         pickle.dump(ood_embeddings, f)
+        f.close()
+
+    with open('./pickle_files/logits_ood_test_{}'.format(ds_name), 'wb') as f:
+        pickle.dump(ood_logits, f)
+        f.close()
 
 
 if __name__ == '__main__':
