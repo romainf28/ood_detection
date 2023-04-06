@@ -40,43 +40,80 @@ class GenerationModel :
 
         self.vocab_size = self.model.config.vocab_size
         self.threshold = None
+        self.bag = None
 
     def generate_set(self, x:tokenization_utils_base.BatchEncoding, temperature:float=1):
-        outputs = self.model.generate(**x.to(self.device), return_dict_in_generate=True,output_scores=True, num_beams=1)
+        outputs = self.model.generate(**x.to(self.device), return_dict_in_generate=True,
+                                      output_scores=True, num_beams=1)
         output_scores = torch.stack(list(outputs.scores), dim=0).permute(1,0,2)
         return self.softmax(output_scores/temperature).to(self.device), outputs.sequences
     
     def anomaly_score(self,x:tokenization_utils_base.BatchEncoding, divergence:Literal["Renyi", "FR"], 
-                      scenario:Literal["s0", "s1"], alpha:Optional[float], temperature:float=1)->int:
+                      scenario:Literal["s0", "s1"], alpha:Optional[float], temperature:float=1):
         set_proba, sequences = self.generate_set(x.to(self.device), temperature=temperature)
         
         if scenario=="s0":
             proba = torch.ones(set_proba.shape)/self.vocab_size
-        elif scenario=="s1":
-            proba = torch.ones(set_proba.shape)/self.vocab_size #TODO
+        
 
-        proba = proba.to(self.device)
-        if divergence == "Renyi":
-            if not alpha:
-                raise AttributeError("When you use Renyi divergence, you must define an alpha")
-            div = torch.sum(renyi_divergence(set_proba, proba, alpha), dim=1)
-        elif divergence =="FR":
-            div = torch.sum(FR_distance(set_proba, proba), dim=1)
-        else: 
-            raise AttributeError("The divergence should be 'Renyi' or 'FR'")
-        return (1/set_proba.shape[1]) * div, sequences
+            proba = proba.to(self.device)
+            if divergence == "Renyi":
+                if not alpha:
+                    raise AttributeError("When you use Renyi divergence, you must define an alpha")
+                div = torch.mean(renyi_divergence(set_proba, proba, alpha), dim=1)
+            elif divergence =="FR":
+                div = torch.mean(FR_distance(set_proba, proba), dim=1)
+            else: 
+                raise AttributeError("The divergence should be 'Renyi' or 'FR'")
+            return div, sequences
+        
+        elif scenario=="s1":
+            if self.bag==None:
+                raise AttributeError("Please generate a bag of distribution to compare with")
+            
+            bag_x = torch.mean(set_proba, dim=1)
+            bag_x_extanded = bag_x.unsqueeze(1).expand(bag_x.shape[0], 
+                                                       self.bag.shape[0], bag_x.shape[1])
+            bag_prob_extanded = self.bag.unsqueeze(0).expand(bag_x.shape[0], 
+                                                       self.bag.shape[0], self.bag.shape[1])
+            
+            if divergence == "Renyi":
+                if not alpha:
+                    raise AttributeError("When you use Renyi divergence, you must define an alpha")
+                div = torch.mean(renyi_divergence(bag_x_extanded, bag_prob_extanded, alpha), dim=1)
+            elif divergence =="FR":
+                div = torch.mean(FR_distance(bag_prob_extanded, bag_prob_extanded), dim=1)
+            else: 
+                raise AttributeError("The divergence should be 'Renyi' or 'FR'")
+            return div, sequences
+            
+
     
     def define_threshold(self, data_loader:DataLoader, r:float, divergence:Literal["Renyi", "FR"], 
                          scenario:Literal["s0", "s1"], alpha:Optional[float], temperature:float=1):
         list_anomaly = []
-        for _, batch in tqdm(enumerate(data_loader), desc="Computing anomaly score for each data", total=data_loader.__len__()):
-            x = self.tokenizer(batch["sourceString"], return_tensors="pt", padding=True).to(self.device)
+        for _, batch in tqdm(enumerate(data_loader), desc="Computing anomaly score for each data", 
+                             total=data_loader.__len__()):
+            x = self.tokenizer(batch["sourceString"], return_tensors="pt", 
+                               padding=True).to(self.device)
             anomaly, _ = self.anomaly_score(x, divergence, scenario, alpha, temperature)
             list_anomaly.append(anomaly)
         self.threshold = torch.quantile(torch.cat(list_anomaly), 1-r)
         return self.threshold
     
-    def classify(self,x:tokenization_utils_base.BatchEncoding, threshold:float, divergence:Literal["Renyi", "FR"], 
-                 scenario:Literal["s0", "s1"], alpha:Optional[float], temperature:float=1):
+    def classify(self,x:tokenization_utils_base.BatchEncoding, threshold:float, 
+                 divergence:Literal["Renyi", "FR"], scenario:Literal["s0", "s1"], 
+                 alpha:Optional[float], temperature:float=1):
         anomaly,_ = self.anomaly_score(x, divergence, scenario, alpha, temperature)
         return anomaly>threshold
+    
+    def generate_bag(self, data_loader:DataLoader, temperature:float=1):
+        list_proba = []
+        for _, batch in tqdm(enumerate(data_loader), desc="Generate bag of distribution", 
+                             total=data_loader.__len__()):
+            x = self.tokenizer(batch["sourceString"], return_tensors="pt", 
+                               padding=True).to(self.device)
+            set_proba, _ = self.generate_set(x.to(self.device), temperature=temperature)
+            list_proba.append(torch.mean(set_proba, dim=1))
+        self.bag = torch.cat(list_proba)
+        return self.bag
