@@ -22,6 +22,30 @@ def FR_distance(p: torch.tensor, q: torch.tensor) -> torch.tensor:
     '''
     return (2/np.pi) * torch.arccos(torch.round(torch.sum((p*q)**0.5, dim=2), decimals=4))
 
+def define_threshold(tensor_score:torch.tensor, r:float):
+        return torch.quantile(tensor_score, 1-r)
+    
+def auroc(tensor_score_in:DataLoader, tensor_score_out:DataLoader, plot:bool=False):
+    r_min = torch.min(tensor_score_out)
+    r_max = torch.max(tensor_score_in)
+    tpr = []
+    fpr = []
+    for threshold in torch.linspace(r_min, r_max, 50,):
+        tpr.append(torch.round((tensor_score_out>=threshold).float(), decimals=0).mean().cpu())
+        fpr.append(torch.round((tensor_score_in>=threshold).float(), decimals=0).mean().cpu())
+    
+    auc = -1 * np.trapz(tpr, fpr)
+    if plot:
+        plt.plot(fpr,tpr)
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC curve, AUC = %.2f'%auc)
+        plt.legend(loc="lower right")
+        plt.savefig('AUC_example.png')
+        plt.show()
+    return auc
 
 class GenerationModel :
     def __init__(self, model_name:str):
@@ -78,7 +102,7 @@ class GenerationModel :
             div = torch.tensor([np.inf]).expand(bag_x.shape[0]).to(self.device)
             del set_proba
             batch_bag_size = 64
-            for i in tqdm(range(self.bag.shape[0]//batch_bag_size), desc="Computing divergence"):
+            for i in range(self.bag.shape[0]//batch_bag_size):
                 
                 bag_prob_extanded = self.bag[i*batch_bag_size:min((i+1)*batch_bag_size, self.bag.shape[0]),:]\
                     .unsqueeze(0).expand(bag_x.shape[0], -1, self.bag.shape[1]).to(self.device)
@@ -100,8 +124,7 @@ class GenerationModel :
             return div
             
 
-    
-    def define_threshold(self, data_loader:DataLoader, r:float, divergence:Literal["Renyi", "FR"], 
+    def anomaly_score_loader(self, data_loader:DataLoader, divergence:Literal["Renyi", "FR"], 
                          scenario:Literal["s0", "s1"], alpha:Optional[float], temperature:float=1):
         list_anomaly = []
         for _, batch in tqdm(enumerate(data_loader), desc="Computing anomaly score for each data", 
@@ -111,8 +134,9 @@ class GenerationModel :
             anomaly = self.anomaly_score(x, divergence, scenario, alpha, temperature)
             del x
             list_anomaly.append(anomaly)
-        self.threshold = torch.quantile(torch.cat(list_anomaly), 1-r)
-        return self.threshold
+        return torch.cat(list_anomaly)
+    
+    
     
     def classify(self,x:tokenization_utils_base.BatchEncoding, threshold:float, 
                  divergence:Literal["Renyi", "FR"], scenario:Literal["s0", "s1"], 
