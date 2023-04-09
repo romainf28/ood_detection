@@ -15,7 +15,7 @@ class OODDetector(ClassifierMixin):
     - T : temperature parameter used in normalization formula if needed
     '''
 
-    def __init__(self, base_distrib: Optional[np.ndarray], base_ood_distrib: Optional[np.ndarray], similarity_measure: str = 'IRW', T: float = 1.0, gamma: float = 1.0):
+    def __init__(self, base_distrib: Optional[np.ndarray], similarity_measure: str = 'IRW', T: float = 1.0, gamma: float = 1.0):
         super().__init__()
 
         assert similarity_measure in (
@@ -27,7 +27,6 @@ class OODDetector(ClassifierMixin):
 
         self.similarity_measure = similarity_measure
         self.base_distrib = base_distrib
-        self.base_ood_distrib = base_ood_distrib
         self.similarity_function_fitted = False
         self.gamma = gamma
         self.T = T
@@ -37,7 +36,7 @@ class OODDetector(ClassifierMixin):
         Assigns a function which computes the similarity between a data point and the base distribution to the 'similarity_score' property.
         '''
         if self.similarity_measure == 'MSP':
-            self.compute_similarity_score = lambda x: np.max(
+            self.compute_similarity_score = lambda x: 1 - np.max(
                 softmax(x), axis=-1)
 
         elif self.similarity_measure == 'E':
@@ -57,7 +56,7 @@ class OODDetector(ClassifierMixin):
             if len(self.base_distrib.shape) == 3:
                 self.base_distrib = np.mean(self.base_distrib, axis=-1)
             self.compute_similarity_score = lambda x: 1 - AI_IRW(
-                X=self.base_distrib, X_test=np.mean(x, axis=-1), n_dirs=int(1e3))
+                X=self.base_distrib, X_test=x, n_dirs=int(1e3))
 
     def fit(self):
         self.fit_similarity_function()
