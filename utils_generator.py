@@ -34,8 +34,8 @@ def auroc(tensor_score_in:torch.tensor, tensor_score_out:torch.tensor, plot:bool
     Compute the auroc, the best f1 and the threshold for the best f1
     Plot the curve of auroc if wanted
     '''
-    r_min = torch.min(tensor_score_out)
-    r_max = torch.max(tensor_score_in)
+    r_min = min(torch.min(tensor_score_out), torch.min(tensor_score_in))
+    r_max = max(torch.max(tensor_score_out), torch.max(tensor_score_in))
     tpr = []
     fpr = []
     best_f1 = 0
