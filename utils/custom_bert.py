@@ -25,3 +25,12 @@ class CustomBert(torch.nn.Module):
         x = self.model.classifier(x_)
 
         return {"embeddings": torch.mean(latent_representations, axis=-1) if aggregate else latent_representations, "logits": x, "attention": x_}
+
+
+if __name__ == '__main__':
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    tokenizer = AutoTokenizer.from_pretrained(
+        'romainf/distilbert-base-uncased-imdb-5000')
+    model = AutoModelForSequenceClassification.from_pretrained(
+        'romainf/distilbert-base-uncased-imdb-5000')
+    print(model.distilbert.pooler)
