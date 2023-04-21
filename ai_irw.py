@@ -78,6 +78,7 @@ def AI_IRW(X_test, AI=True, robust=False, n_dirs=None, X=None, random_state=None
     else:
         if AI:
             X_reduced, Sigma_inv_square = standardize(X, robust)
+            print(Sigma_inv_square.shape)
             X_test_reduced = X_test @ Sigma_inv_square
         else:
             X_reduced = X.copy()

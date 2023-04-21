@@ -15,7 +15,7 @@ class OODDetector(ClassifierMixin):
     - T : temperature parameter used in normalization formula if needed
     '''
 
-    def __init__(self, base_distrib: Optional[np.ndarray], similarity_measure: str = 'IRW', T: float = 1.0, gamma: float = 1.0):
+    def __init__(self, base_distrib: Optional[np.ndarray], similarity_measure: str = 'IRW', T: float = 1.0, gamma: float = 1.0, aggregation_function = lambda x : np.mean(x, axis=-1), use_AI_IRW:bool = True):
         super().__init__()
 
         assert similarity_measure in (
@@ -30,6 +30,8 @@ class OODDetector(ClassifierMixin):
         self.similarity_function_fitted = False
         self.gamma = gamma
         self.T = T
+        self.aggregation_function = aggregation_function
+        self.AI = use_AI_IRW
 
     def fit_similarity_function(self) -> None:
         '''
@@ -40,23 +42,19 @@ class OODDetector(ClassifierMixin):
                 softmax(x), axis=-1)
 
         elif self.similarity_measure == 'E':
-            def e_score_wrapper(x):
-                return energy_score(x, temperature=self.T)
-            # normalize energy score to make it positive
-            self.compute_similarity_score = lambda x: np.max(
-                e_score_wrapper(x)) - e_score_wrapper(x)
+            self.compute_similarity_score = lambda x: - energy_score(x, temperature=self.T)
 
         elif self.similarity_measure == 'mahalanobis':
             if len(self.base_distrib.shape) == 3:
-                self.base_distrib = np.mean(self.base_distrib, axis=-1)
-            self.compute_similarity_score = lambda x: mahalanobis_distance(
+                self.base_distrib =self.aggregation_function(self.base_distrib)
+            self.compute_similarity_score = lambda x:mahalanobis_distance(
                 x, self.base_distrib)
 
         elif self.similarity_measure == 'IRW':
             if len(self.base_distrib.shape) == 3:
-                self.base_distrib = np.mean(self.base_distrib, axis=-1)
+                self.base_distrib = self.aggregation_function(self.base_distrib)
             self.compute_similarity_score = lambda x: 1 - AI_IRW(
-                X=self.base_distrib, X_test=x, n_dirs=int(1e3))
+                X=self.base_distrib, X_test=x, n_dirs=int(1e3), AI = self.AI)
 
     def fit(self):
         self.fit_similarity_function()
@@ -69,12 +67,9 @@ class OODDetector(ClassifierMixin):
             X = X[None, :]
         return (self.compute_similarity_score(X) <= self.gamma).astype(int)
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+    def compute_similarity(self, X: np.ndarray) -> np.ndarray:
         assert self.similarity_function_fitted, "Please fit the similarity function before trying to make predictions"
         if len(X.shape) == 1:
             X = X[None, :]
-        return self.compute_similarity_score(X)
-
-    def score(self, X: np.ndarray, y: np.ndarray) -> float:
-        preds = self.predict(X)
-        return np.mean((preds == y).astype(int))
+        self.scores = self.compute_similarity_score(X)
+        return self.scores

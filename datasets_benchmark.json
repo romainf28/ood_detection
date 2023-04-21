@@ -4,5 +4,7 @@
   "mnli": ["SetFit/mnli"],
   "rte": ["SetFit/rte"],
   "wmt16": ["wmt16", "de-en"],
-  "multi30k": ["bentrevett/multi30k"]
+  "multi30k": ["bentrevett/multi30k"],
+  "sst2":["sst2"],
+  "trec":["trec"]
 }
