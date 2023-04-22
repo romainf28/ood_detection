@@ -1,5 +1,8 @@
 # Safe AI: Toward Safer Systems Against Data Drift
 
+## Link to the overleaf of our project
+https://www.overleaf.com/4171684317fqpgwtxsynjd
+
 ## General Context
 
 Advanced techniques in Deep Learning (DL) have brought significant improvements over previous state-of-the-art methods
